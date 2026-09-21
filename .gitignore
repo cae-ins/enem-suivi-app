@@ -1,0 +1,30 @@
+# Environnements et caches Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Configuration et stockage locaux
+config/profil.json
+donnees_app/*.sqlite
+donnees_app/*.sqlite-*
+donnees_app/*.log
+
+# Donnees, references operationnelles et resultats
+Resultats/
+reference/*.xlsx
+tests/donnees_fictives/
+*.dta
+*.sav
+*.parquet
+
+# Fichiers temporaires et archives
+*.tmp
+~$*
+*.zip
+
+# Outils et systeme
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

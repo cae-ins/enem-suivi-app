@@ -1,0 +1,17 @@
+{
+  "globaux": {
+    "utilisateur": "",
+    "trimestre": "T1_2026",
+    "lundi_semaine1": "",
+    "dossier_sortie": "Resultats",
+    "semaine_ref": "reference/Semaine_ref.xlsx",
+    "information_agent": "reference/information_agent.xlsx",
+    "fichier_gantt": "reference/Fichier_Gant.xlsx",
+    "base_donnees": "donnees_app/suivi_enem.sqlite",
+    "dossier_codes_origine": "",
+    "versions_menage": [],
+    "versions_denombrement": [],
+    "cohortes": []
+  },
+  "modules": {}
+}

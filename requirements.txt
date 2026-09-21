@@ -1,0 +1,6 @@
+# Bibliothèques nécessaires (python -m pip install -r requirements.txt)
+pandas>=2.0
+openpyxl>=3.1
+matplotlib>=3.7
+# Facultatif : lecture plus rapide des fichiers .dta (l'application fonctionne sans)
+pyreadstat>=1.2; python_version < "3.15"
