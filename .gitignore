@@ -28,3 +28,17 @@ tests/donnees_fictives/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Frontend et environnement web local
+node_modules/
+.angular/
+.npm-cache/
+.pip-cache/
+dist/
+.env
+web/backend/.pytest_cache/
+test-web.sqlite3
+.venv-web/
+.chrome-preview/
+.edge-preview/
+web/frontend/angular-dev.*.log

@@ -1,0 +1,103 @@
+@if (!authenticated()) {
+  <main class="login-page">
+    <section class="login-card">
+      <img src="/logo_anstat.png" alt="ANStat" />
+      <span class="eyebrow">ENQUÊTE NATIONALE SUR L’EMPLOI</span>
+      <h1>ENEM Suivi</h1>
+      <p>Connecte-toi avec le compte créé dans Django.</p>
+      <form (ngSubmit)="login()">
+        <label>Nom d’utilisateur<input name="username" [(ngModel)]="username" autocomplete="username" required /></label>
+        <label>Mot de passe<input name="password" [(ngModel)]="password" type="password" autocomplete="current-password" required /></label>
+        @if (error()) { <div class="message error">{{ error() }}</div> }
+        <button class="primary" type="submit" [disabled]="loading()">{{ loading() ? 'Connexion…' : 'Se connecter' }}</button>
+      </form>
+    </section>
+  </main>
+} @else {
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><img src="/logo_anstat.png" alt="ANStat" /><div><strong>ENEM</strong><span>Suivi collecte</span></div></div>
+      <nav>
+        <p>ESPACE DE TRAVAIL</p>
+        <a href="#dashboard">Tableau de bord</a>
+        <a href="#catalogue">Catalogue métier</a>
+        <a href="#files">Fichiers de collecte</a>
+        <a href="#executions">Traitements</a>
+      </nav>
+      <div class="infra"><i></i><div><strong>Infrastructure</strong><span>API · PostgreSQL · MinIO</span></div></div>
+    </aside>
+
+    <main id="dashboard">
+      <header>
+        <div><span class="eyebrow">ENQUÊTE NATIONALE SUR L’EMPLOI</span><h1>Tableau de bord</h1></div>
+        <div class="header-actions"><span class="user">{{ username || 'Utilisateur' }}</span><button (click)="logout()">Déconnexion</button></div>
+      </header>
+
+      @if (error()) { <div class="message error dismissible">{{ error() }} <button (click)="error.set('')">×</button></div> }
+      @if (notice()) { <div class="message success dismissible">{{ notice() }} <button (click)="notice.set('')">×</button></div> }
+
+      <section class="welcome">
+        <div><span class="pill">{{ quarter }}</span><h2>Suivi opérationnel</h2><p>Données réelles de PostgreSQL, MinIO et de la file Celery.</p></div>
+        <button class="primary" (click)="openExecution()">＋ Nouveau traitement</button>
+      </section>
+
+      <section class="metrics">
+        <article><span>Modules disponibles</span><strong>{{ modules().length }}</strong><small>moteur métier partagé avec Tkinter</small></article>
+        <article><span>Fichiers prêts</span><strong>{{ files().length }}</strong><small>stockés dans MinIO</small></article>
+        <article><span>Traitements actifs</span><strong>{{ (executions() | slice:0).length }}</strong><small>historique PostgreSQL</small></article>
+        <article><span>Dernier statut</span><strong class="compact">{{ executions()[0] ? statusLabel(executions()[0].status) : 'Aucun' }}</strong><small>actualisé toutes les 3 secondes</small></article>
+      </section>
+
+      <section class="panel" id="catalogue">
+        <div class="panel-title"><div><h3>Catalogue métier</h3><p>{{ modules().length }} modules chargés depuis l’application existante</p></div></div>
+        <div class="module-grid">
+          @for (module of modules(); track module.id; let i = $index) {
+            <article class="module-card">
+              <div class="module-head"><span class="module-icon tone-{{ i % 4 }}">{{ module.short_name.charAt(0) }}</span><span class="status">{{ module.team }}</span></div>
+              <h4>{{ module.short_name }}</h4><p>{{ module.description }}</p>
+              <footer><span>{{ module.frequency }}</span><button (click)="openExecution(module)">Lancer →</button></footer>
+            </article>
+          } @empty { <p class="empty">Aucun module disponible.</p> }
+        </div>
+      </section>
+
+      <section class="two-columns">
+        <div class="panel" id="files">
+          <div class="panel-title"><div><h3>Fichiers de collecte</h3><p>Dépôt direct et sécurisé vers MinIO</p></div><label class="upload">Ajouter un fichier<input type="file" (change)="upload($event)" [disabled]="loading()" /></label></div>
+          <div class="toolbar"><label>Trimestre<input [(ngModel)]="uploadQuarter" /></label></div>
+          <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Taille</th><th>État</th><th>Date</th><th></th></tr></thead><tbody>
+            @for (file of files(); track file.id) { <tr><td>{{ file.original_name }}</td><td>{{ size(file.size_bytes) }}</td><td><span class="badge {{ file.status }}">{{ file.status }}</span></td><td>{{ file.created_at | date:'short' }}</td><td><button class="link" [disabled]="file.status !== 'ready'" (click)="download(file)">Télécharger</button></td></tr> }
+            @empty { <tr><td colspan="5" class="empty">Aucun fichier importé.</td></tr> }
+          </tbody></table></div>
+        </div>
+
+        <div class="panel" id="executions">
+          <div class="panel-title"><div><h3>Traitements</h3><p>Exécution asynchrone par Celery</p></div></div>
+          <div class="execution-list">
+            @for (execution of executions(); track execution.id) {
+              <article class="execution-row">
+                <div><strong>{{ moduleName(execution.module_id) }}</strong><small>{{ execution.created_at | date:'short' }} · {{ execution.quarter }}</small><p>{{ execution.progress_message || execution.summary || 'En attente du worker' }}</p></div>
+                <div class="execution-status"><span class="badge {{ execution.status }}">{{ statusLabel(execution.status) }}</span><b>{{ execution.progress }}%</b></div>
+                <div class="progress"><i [style.width.%]="execution.progress"></i></div>
+                @if (execution.files.length) { <small>{{ execution.files.length }} résultat(s) produit(s)</small> }
+              </article>
+            } @empty { <p class="empty">Aucun traitement lancé.</p> }
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  @if (executionOpen()) {
+    <div class="modal-backdrop" (click)="executionOpen.set(false)">
+      <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="createExecution()">
+        <div class="modal-head"><div><span class="eyebrow">CELERY</span><h2>Nouveau traitement</h2></div><button type="button" (click)="executionOpen.set(false)">×</button></div>
+        <label>Module<select name="module" [(ngModel)]="selectedModule" required>@for (module of modules(); track module.id) { <option [value]="module.id">{{ module.short_name }}</option> }</select></label>
+        <label>Trimestre<input name="quarter" [(ngModel)]="quarter" required /></label>
+        <label>Paramètres du module (JSON)<textarea name="parameters" [(ngModel)]="parametersText" rows="8"></textarea></label>
+        <p class="hint">Les chemins des fichiers montés depuis le poste commencent par <code>/data/import</code>.</p>
+        <div class="modal-actions"><button type="button" (click)="executionOpen.set(false)">Annuler</button><button class="primary" type="submit" [disabled]="loading()">Lancer</button></div>
+      </form>
+    </div>
+  }
+}
