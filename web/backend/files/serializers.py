@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from enem_core.parametres import valider
 from modules import charger_modules
 from .models import Execution, StoredFile
 
@@ -33,3 +34,23 @@ class ExecutionSerializer(serializers.ModelSerializer):
         if value not in {module.id for module in charger_modules()}:
             raise serializers.ValidationError("Module inconnu")
         return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        parameters = attrs.get("parameters", {})
+        if not isinstance(parameters, dict):
+            raise serializers.ValidationError({"parameters": ["Un objet JSON est attendu."]})
+        module = next((item for item in charger_modules() if item.id == attrs.get("module_id")), None)
+        if module is None:
+            return attrs
+        values = dict(parameters)
+        values["dossier_sortie"] = "/tmp/enem-validation"
+        _converted, errors = valider(module.parametres, values)
+        if errors:
+            raise serializers.ValidationError({"parameters": errors})
+        attrs["parameters"] = {
+            parameter.cle: parameters.get(parameter.cle, parameter.defaut)
+            for parameter in module.parametres
+            if parameter.cle != "dossier_sortie"
+        }
+        return attrs

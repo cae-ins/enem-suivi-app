@@ -71,6 +71,7 @@ class EvolutionZD(ModuleBase):
     @staticmethod
     def _cohortes():
         param = p_cohortes(libelle="Cohortes de réinterrogation (dossier facultatif)")
+        param.obligatoire = False
         param.aide = AIDE_COHORTES
         param.note = ("La base du trimestre en cours contient déjà toutes les cohortes : indiquez seulement le "
                       "trimestre d'origine et sa valeur de rgmen. Le dossier ne sert que si la cohorte se trouve "

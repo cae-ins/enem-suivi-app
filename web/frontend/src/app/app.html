@@ -92,10 +92,68 @@
     <div class="modal-backdrop" (click)="executionOpen.set(false)">
       <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="createExecution()">
         <div class="modal-head"><div><span class="eyebrow">CELERY</span><h2>Nouveau traitement</h2></div><button type="button" (click)="executionOpen.set(false)">×</button></div>
-        <label>Module<select name="module" [(ngModel)]="selectedModule" required>@for (module of modules(); track module.id) { <option [value]="module.id">{{ module.short_name }}</option> }</select></label>
-        <label>Trimestre<input name="quarter" [(ngModel)]="quarter" required /></label>
-        <label>Paramètres du module (JSON)<textarea name="parameters" [(ngModel)]="parametersText" rows="8"></textarea></label>
-        <p class="hint">Les chemins des fichiers montés depuis le poste commencent par <code>/data/import</code>.</p>
+        <label>Module<select name="module" [(ngModel)]="selectedModule" (ngModelChange)="moduleChanged()" required>@for (module of modules(); track module.id) { <option [value]="module.id">{{ module.short_name }}</option> }</select></label>
+        @for (group of parameterGroups(); track group) {
+          <fieldset class="parameter-group">
+            <legend>{{ group }}</legend>
+            @for (parameter of parametersForGroup(group); track parameter.key) {
+              <div class="parameter-field" [class.wide]="parameter.type === 'versions' || parameter.type === 'tableau'">
+                @if (parameter.note) { <div class="parameter-note">{{ parameter.note }}</div> }
+                @switch (parameter.type) {
+                  @case ('booleen') {
+                    <label class="checkbox"><input type="checkbox" [name]="parameter.key" [(ngModel)]="parameterValues[parameter.key]" /> <span>{{ parameter.label }}</span></label>
+                  }
+                  @case ('choix') {
+                    <label>{{ parameter.label }} @if (parameter.required) { <b>*</b> }
+                      <select [name]="parameter.key" [(ngModel)]="parameterValues[parameter.key]" [required]="parameter.required">
+                        @for (option of parameter.options ?? []; track option) { <option [ngValue]="option">{{ option }}</option> }
+                      </select>
+                    </label>
+                  }
+                  @case ('versions') {
+                    <label>{{ parameter.label }} @if (parameter.required) { <b>*</b> }</label>
+                    <div class="repeat-list">
+                      @for (version of parameterValues[parameter.key]; track $index; let index = $index) {
+                        <div><input [name]="parameter.key + index" [(ngModel)]="parameterValues[parameter.key][index]" placeholder="/data/import/dossier-version" /><button type="button" (click)="removeVersion(parameter.key, index)">×</button></div>
+                      }
+                      <button type="button" class="add-row" (click)="addVersion(parameter.key)">+ Ajouter un dossier</button>
+                    </div>
+                  }
+                  @case ('tableau') {
+                    <label>{{ parameter.label }} @if (parameter.required) { <b>*</b> }</label>
+                    <div class="repeat-table">
+                      @for (row of parameterValues[parameter.key]; track $index; let rowIndex = $index) {
+                        <div class="repeat-row">
+                          @for (column of parameter.columns ?? []; track column.key) {
+                            <label>{{ column.label }}<input [type]="column.type === 'entier' ? 'number' : 'text'" [name]="parameter.key + rowIndex + column.key" [(ngModel)]="row[column.key]" /></label>
+                          }
+                          <button type="button" (click)="removeTableRow(parameter.key, rowIndex)">×</button>
+                        </div>
+                      }
+                      <button type="button" class="add-row" (click)="addTableRow(parameter)">+ Ajouter une ligne</button>
+                    </div>
+                  }
+                  @default {
+                    <label>{{ parameter.label }} @if (parameter.required) { <b>*</b> }
+                      <input
+                        [type]="parameter.type === 'date' ? 'date' : (parameter.type === 'entier' || parameter.type === 'reel' ? 'number' : 'text')"
+                        [name]="parameter.key"
+                        [(ngModel)]="parameterValues[parameter.key]"
+                        [required]="parameter.required"
+                        [min]="parameter.mini ?? null"
+                        [max]="parameter.maxi ?? null"
+                        [placeholder]="parameter.type === 'fichier' ? '/data/import/fichier.xlsx' : (parameter.type === 'dossier' ? '/data/import/dossier' : '')"
+                      />
+                    </label>
+                  }
+                }
+                @if (parameter.help) { <small class="field-help">{{ parameter.help }}</small> }
+              </div>
+            }
+          </fieldset>
+        }
+        <p class="hint">Les fichiers et dossiers locaux sont montés en lecture seule sous <code>/data/import</code>. Les champs marqués * sont obligatoires.</p>
+        @if (error()) { <div class="message error">{{ error() }}</div> }
         <div class="modal-actions"><button type="button" (click)="executionOpen.set(false)">Annuler</button><button class="primary" type="submit" [disabled]="loading()">Lancer</button></div>
       </form>
     </div>

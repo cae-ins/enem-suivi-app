@@ -1,6 +1,7 @@
 import datetime as dt
 import re
 import uuid
+from dataclasses import fields, is_dataclass
 from pathlib import Path
 from django.conf import settings
 from django.db import connection
@@ -16,6 +17,41 @@ from .serializers import ExecutionSerializer, StoredFileSerializer, UploadTicket
 from .tasks import run_execution
 
 
+def _json_value(value):
+    if is_dataclass(value):
+        return {field.name: _json_value(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, (dt.date, dt.datetime)):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, tuple):
+        return [_json_value(item) for item in value]
+    if isinstance(value, list):
+        return [_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    return value
+
+
+def _parameter_schema(parameter):
+    schema = {
+        "key": parameter.cle,
+        "label": parameter.libelle,
+        "type": parameter.type,
+        "default": _json_value(parameter.defaut),
+        "required": parameter.obligatoire,
+        "help": parameter.aide,
+        "note": parameter.note,
+        "group": parameter.groupe,
+    }
+    for attribute in ("mini", "maxi", "options", "types", "maxi_lignes"):
+        if hasattr(parameter, attribute):
+            schema[attribute] = _json_value(getattr(parameter, attribute))
+    if hasattr(parameter, "colonnes"):
+        schema["columns"] = _json_value(parameter.colonnes)
+    return schema
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(_request):
@@ -29,7 +65,9 @@ def health(_request):
 def module_catalog(_request):
     return Response([{"id": m.id, "name": m.nom, "short_name": m.nom_court or m.nom,
                       "description": m.description, "team": m.equipe,
-                      "frequency": m.frequence_libelle, "order": m.ordre} for m in charger_modules()])
+                      "frequency": m.frequence_libelle, "order": m.ordre,
+                      "parameters": [_parameter_schema(p) for p in m.parametres if p.cle != "dossier_sortie"]}
+                     for m in charger_modules()])
 
 
 class StoredFileViewSet(viewsets.ReadOnlyModelViewSet):

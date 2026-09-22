@@ -64,7 +64,8 @@ demande une URL MinIO signee valable cinq minutes : aucune cle MinIO n'est expos
 1. connexion Angular avec le compte Django et stockage du JWT dans la session du navigateur ;
 2. consultation des 12 modules metier partages avec Tkinter ;
 3. import d'un fichier dans MinIO ou consultation des fichiers importes depuis le poste ;
-4. lancement d'un module avec ses parametres JSON ;
+4. lancement d'un module depuis un formulaire genere avec ses parametres declares (dates, nombres,
+   choix, fichiers, dossiers, versions et tableaux) ;
 5. suivi de la progression Celery, rafraichie toutes les trois secondes ;
 6. consultation de l'historique PostgreSQL et telechargement signe des resultats.
 
@@ -83,8 +84,11 @@ avec le trimestre `T4_2026` et les parametres suivants :
 
 Le resultat attendu est un fichier `Diagramme_Gantt_T4_2026.xlsx` disponible dans la liste des fichiers.
 
+Les parametres sont controles une premiere fois par Django avant la creation d'une execution. Une saisie
+incomplete reste donc dans le formulaire avec un message exploitable et n'encombre pas la file Celery.
+
 ## Limites de cette premiere version
 
-- les parametres propres a chaque module sont saisis en JSON ; des formulaires specialises pourront les remplacer ;
+- les champs de fichiers et dossiers attendent un chemin visible dans le conteneur, sous `/data/import` ;
 - les droits utilisent pour l'instant les comptes Django authentifies, sans matrice de roles metier ;
 - le rafraichissement de progression repose sur une interrogation periodique, sans WebSocket.

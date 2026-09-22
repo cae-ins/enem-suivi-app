@@ -12,6 +12,23 @@ interface ModuleSummary {
   team: string;
   frequency: string;
   order: number;
+  parameters: ParameterDefinition[];
+}
+
+interface ParameterColumn { key: string; label: string; type: string; width: number; }
+interface ParameterDefinition {
+  key: string;
+  label: string;
+  type: string;
+  default: unknown;
+  required: boolean;
+  help: string;
+  note: string;
+  group: string;
+  mini?: number;
+  maxi?: number;
+  options?: unknown[];
+  columns?: ParameterColumn[];
 }
 
 interface StoredFile {
@@ -63,7 +80,7 @@ export class App implements OnDestroy {
   password = '';
   selectedModule = '';
   quarter = 'T3_2026';
-  parametersText = '{}';
+  parameterValues: Record<string, any> = {};
   uploadQuarter = 'T3_2026';
 
   constructor() {
@@ -106,20 +123,22 @@ export class App implements OnDestroy {
 
   openExecution(module?: ModuleSummary): void {
     this.selectedModule = module?.id ?? this.modules()[0]?.id ?? '';
+    this.resetParameters();
     this.error.set('');
     this.executionOpen.set(true);
   }
 
   createExecution(): void {
-    let parameters: Record<string, unknown>;
-    try {
-      parameters = JSON.parse(this.parametersText);
-    } catch {
-      this.error.set('Les paramètres doivent être un objet JSON valide.');
-      return;
-    }
     if (!this.selectedModule) {
       this.error.set('Sélectionne un module.');
+      return;
+    }
+    const parameters = this.buildParameters();
+    const missing = this.currentParameters().filter(parameter =>
+      parameter.required && this.isEmpty(parameters[parameter.key])
+    );
+    if (missing.length) {
+      this.error.set(`Champs obligatoires : ${missing.map(item => item.label).join(', ')}`);
       return;
     }
     this.loading.set(true);
@@ -137,6 +156,40 @@ export class App implements OnDestroy {
       },
       error: error => this.handleError(error, 'Impossible de lancer le traitement.'),
     });
+  }
+
+  currentParameters(): ParameterDefinition[] {
+    return this.modules().find(module => module.id === this.selectedModule)?.parameters ?? [];
+  }
+
+  parameterGroups(): string[] {
+    return [...new Set(this.currentParameters().map(parameter => parameter.group))];
+  }
+
+  parametersForGroup(group: string): ParameterDefinition[] {
+    return this.currentParameters().filter(parameter => parameter.group === group);
+  }
+
+  moduleChanged(): void {
+    this.resetParameters();
+  }
+
+  addVersion(key: string): void {
+    (this.parameterValues[key] as string[]).push('');
+  }
+
+  removeVersion(key: string, index: number): void {
+    (this.parameterValues[key] as string[]).splice(index, 1);
+  }
+
+  addTableRow(parameter: ParameterDefinition): void {
+    const row: Record<string, unknown> = {};
+    for (const column of parameter.columns ?? []) row[column.key] = '';
+    (this.parameterValues[parameter.key] as Record<string, unknown>[]).push(row);
+  }
+
+  removeTableRow(key: string, index: number): void {
+    (this.parameterValues[key] as Record<string, unknown>[]).splice(index, 1);
   }
 
   upload(event: Event): void {
@@ -205,6 +258,7 @@ export class App implements OnDestroy {
       next: data => {
         this.modules.set(data);
         this.selectedModule ||= data[0]?.id ?? '';
+        this.resetParameters();
         this.loading.set(false);
       },
       error: error => this.handleError(error, 'Le catalogue métier est indisponible.'),
@@ -230,8 +284,50 @@ export class App implements OnDestroy {
   private handleError(error: HttpErrorResponse, fallback: string): void {
     this.loading.set(false);
     if (this.handleUnauthorized(error)) return;
-    const detail = typeof error.error?.detail === 'string' ? error.error.detail : fallback;
+    const detail = this.apiError(error.error) || fallback;
     this.error.set(detail);
+  }
+
+  private resetParameters(): void {
+    const values: Record<string, any> = {};
+    for (const parameter of this.currentParameters()) {
+      const value = parameter.default;
+      if (parameter.type === 'versions') {
+        values[parameter.key] = Array.isArray(value) ? [...value] : [''];
+      } else if (parameter.type === 'tableau') {
+        values[parameter.key] = Array.isArray(value) ? value.map(row => ({ ...(row as object) })) : [];
+      } else {
+        values[parameter.key] = value ?? '';
+      }
+    }
+    this.parameterValues = values;
+  }
+
+  private buildParameters(): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const parameter of this.currentParameters()) {
+      let value = this.parameterValues[parameter.key];
+      if (parameter.type === 'versions') value = (value as string[]).filter(item => item.trim());
+      if (parameter.type === 'tableau') {
+        value = (value as Record<string, unknown>[]).filter(row => Object.values(row).some(item => String(item ?? '').trim()));
+      }
+      result[parameter.key] = value;
+    }
+    const trimestre = result['trimestre'];
+    if (typeof trimestre === 'string' && trimestre) this.quarter = trimestre.replace('-', '_');
+    return result;
+  }
+
+  private isEmpty(value: unknown): boolean {
+    return value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
+  }
+
+  private apiError(payload: unknown): string {
+    if (!payload || typeof payload !== 'object') return '';
+    const object = payload as Record<string, unknown>;
+    if (typeof object['detail'] === 'string') return object['detail'];
+    const messages = Object.values(object).flatMap(value => Array.isArray(value) ? value : [value]);
+    return messages.filter(value => typeof value === 'string').join(' ');
   }
 
   private handleUnauthorized(error: HttpErrorResponse): boolean {
